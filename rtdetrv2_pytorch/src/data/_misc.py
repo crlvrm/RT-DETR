@@ -3,8 +3,8 @@
 
 import importlib.metadata
 from torch import Tensor 
-
-if importlib.metadata.version('torchvision') == '0.15.2':
+torchvision_version = importlib.metadata.version('torchvision').split('+')[0]
+if torchvision_version == '0.15.2':
     import torchvision
     torchvision.disable_beta_transforms_warning()
 
@@ -13,7 +13,7 @@ if importlib.metadata.version('torchvision') == '0.15.2':
     from torchvision.transforms.v2 import SanitizeBoundingBox as SanitizeBoundingBoxes
     _boxes_keys = ['format', 'spatial_size']
 
-elif '0.17' > importlib.metadata.version('torchvision') >= '0.16':
+elif '0.17' > torchvision_version >= '0.16':
     import torchvision
     torchvision.disable_beta_transforms_warning()
 
@@ -22,7 +22,7 @@ elif '0.17' > importlib.metadata.version('torchvision') >= '0.16':
         BoundingBoxes, BoundingBoxFormat, Mask, Image, Video)
     _boxes_keys = ['format', 'canvas_size']
 
-elif importlib.metadata.version('torchvision') >= '0.17':
+elif torchvision_version >= '0.17':
     import torchvision
     from torchvision.transforms.v2 import SanitizeBoundingBoxes
     from torchvision.tv_tensors import (

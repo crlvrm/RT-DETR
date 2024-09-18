@@ -1,5 +1,5 @@
 __include__: [
-  '../dataset/bdd_detection.yml',
+  '../dataset/bdd_detection_kaggle.yml',
   '../runtime.yml',
   './include/dataloader.yml',
   './include/optimizer.yml',
@@ -7,7 +7,7 @@ __include__: [
 ]
 
 
-output_dir: ./output/rtdetrv2_r18vd_120e_coco
+output_dir: /kaggle/working/output/rtdetrv2_r18vd_120e_coco
 
 
 PResNet:
