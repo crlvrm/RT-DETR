@@ -18,8 +18,8 @@ train_dataloader:
   type: DataLoader
   dataset: 
     type: CocoDetection
-    img_folder: /content/drive/MyDrive/dataset/images/train/
-    ann_file: /content/drive/MyDrive/dataset/labels_coco/bdd100k_labels_images_det_coco_train.json
+    img_folder: /content/dataset/images/train/
+    ann_file: /content/dataset/labels_coco/bdd100k_labels_images_det_coco_train.json
     return_masks: False
     transforms:
       type: Compose
@@ -35,8 +35,8 @@ val_dataloader:
   type: DataLoader
   dataset: 
     type: CocoDetection
-    img_folder: /content/drive/MyDrive/dataset/images/val/
-    ann_file: /content/drive/MyDrive/dataset/labels_coco/bdd100k_labels_images_det_coco_val.json
+    img_folder: /content/dataset/images/val/
+    ann_file: /content/dataset/labels_coco/bdd100k_labels_images_det_coco_val.json
     return_masks: False
     transforms:
       type: Compose
