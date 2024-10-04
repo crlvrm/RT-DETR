@@ -27,7 +27,7 @@ RTDETRTransformerv2:
   num_layers: 3
 
 
-epoches: 16
+epoches: 17
 
 optimizer:
   type: AdamW
