@@ -14,13 +14,13 @@ train_dataloader:
         - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
       policy:
         name: stop_epoch
-        epoch: 71 # epoch in [71, ~) stop `ops`
+        epoch: 21 # epoch in [71, ~) stop `ops`
         ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
   
   collate_fn:
     type: BatchImageCollateFuncion
     scales: [480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
-    stop_epoch: 71 # epoch in [71, ~) stop `multiscales`
+    stop_epoch: 21 # epoch in [71, ~) stop `multiscales`
 
   shuffle: True
   total_batch_size: 48 # total batch size equals to 16 (4 * 4)

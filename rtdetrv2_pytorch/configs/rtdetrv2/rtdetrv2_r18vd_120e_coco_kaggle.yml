@@ -27,7 +27,7 @@ RTDETRTransformerv2:
   num_layers: 3
 
 
-epoches: 20
+epoches: 24
 
 optimizer:
   type: AdamW
@@ -41,6 +41,6 @@ train_dataloader:
   dataset: 
     transforms:
       policy:
-        epoch: 117
+        epoch: 22
   collate_fn:
     scales: ~
