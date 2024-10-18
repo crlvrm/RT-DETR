@@ -94,7 +94,7 @@ class ConvNormLayer(nn.Module):
 class StarNet(nn.Module):
     def __init__(
             self,
-            depth,
+            name,
             variant='d',
             num_stages=4,
             return_idx=[0, 1, 2, 3],
@@ -117,9 +117,10 @@ class StarNet(nn.Module):
         else:
             conv_def = [[3, ch_in, 7, 2, "conv1_1"]]
 
-        self.conv1 = nn.Sequential(OrderedDict([
-            (name, ConvNormLayer(cin, cout, k, s, act=act)) for cin, cout, k, s, name in conv_def
-        ]))
+        # self.conv1 = nn.Sequential(OrderedDict([
+        #     (name, ConvNormLayer(cin, cout, k, s, act=act)) for cin, cout, k, s, name in conv_def
+        # ]))
+        self.conv1 = nn.Sequential(ConvBN(3, self.in_channel, kernel_size=3, stride=2, padding=1), nn.ReLU6())
 
         ch_out_list = [64, 128, 256, 512]
 
@@ -152,13 +153,13 @@ class StarNet(nn.Module):
         if freeze_norm:
             self._freeze_norm(self)
 
-        # if pretrained:
-        #     if isinstance(pretrained, bool) or 'http' in pretrained:
-        #         state = torch.hub.load_state_dict_from_url(donwload_url[depth], map_location='cpu')
-        #     else:
-        #         state = torch.load(pretrained, map_location='cpu')
-        #     self.load_state_dict(state)
-        #     print(f'Load StarNet{depth} state_dict')
+        if pretrained:
+            if isinstance(pretrained, bool) or 'http' in pretrained:
+                state = torch.hub.load_state_dict_from_url(model_urls[name], map_location='cpu')
+            # else:
+            #     state = torch.load(pretrained, map_location='cpu')
+                self.load_state_dict(state)
+                print(f'Load StarNet{name} state_dict')
 
     def _freeze_parameters(self, m: nn.Module):
         for p in m.parameters():
