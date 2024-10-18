@@ -120,7 +120,7 @@ class StarNet(nn.Module):
         # self.conv1 = nn.Sequential(OrderedDict([
         #     (name, ConvNormLayer(cin, cout, k, s, act=act)) for cin, cout, k, s, name in conv_def
         # ]))
-        self.conv1 = nn.Sequential(ConvBN(3, self.in_channel, kernel_size=3, stride=2, padding=1), nn.ReLU6())
+        self.conv1 = nn.Sequential(ConvBN(3, ch_in, kernel_size=3, stride=2, padding=1), nn.ReLU6())
 
         ch_out_list = [64, 128, 256, 512]
 
