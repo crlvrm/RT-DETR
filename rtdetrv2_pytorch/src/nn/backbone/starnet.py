@@ -120,7 +120,7 @@ class StarNet(nn.Module):
         # self.conv1 = nn.Sequential(OrderedDict([
         #     (name, ConvNormLayer(cin, cout, k, s, act=act)) for cin, cout, k, s, name in conv_def
         # ]))
-        self.conv1 = nn.Sequential(ConvBN(3, ch_in, kernel_size=3, stride=2, padding=1), nn.ReLU6())
+        self.stem = nn.Sequential(ConvBN(3, ch_in, kernel_size=3, stride=2, padding=1), nn.ReLU6())
 
         ch_out_list = [64, 128, 256, 512]
 
@@ -128,14 +128,14 @@ class StarNet(nn.Module):
         _out_channels = ch_out_list
         _out_strides = [4, 8, 16, 32]
 
-        self.res_layers = nn.ModuleList()
+        self.stages = nn.ModuleList()
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(block_nums))]  # stochastic depth
         cur = 0
         for i_layer in range(len(block_nums)):
 
             down_sampler = ConvBN(ch_in, ch_out_list[i_layer], 3, 2, 1)
             blocks = [Block(ch_out_list[i_layer], mlp_ratio, dpr[cur + i]) for i in range(block_nums[i_layer])]
-            self.res_layers.append(
+            self.stages.append(
                 nn.Sequential(down_sampler, *blocks)
             )
             cur += block_nums[i_layer]
@@ -187,7 +187,7 @@ class StarNet(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         outs = []
-        for idx, stage in enumerate(self.res_layers):
+        for idx, stage in enumerate(self.stages):
             x = stage(x)
             if idx in self.return_idx:
                 outs.append(x)
