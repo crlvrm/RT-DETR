@@ -16,12 +16,12 @@ StarNet:
   name: 'starnet_s2'
   return_idx: [1, 2, 3]
   freeze_at: -1
-  freeze_norm: False
-  pretrained: False
+  freeze_norm: True
+  pretrained: True
 
 
 HybridEncoder:
-  in_channels: [128, 256, 512]
+  in_channels: [64, 128, 256]
   hidden_dim: 256
   expansion: 0.5
 

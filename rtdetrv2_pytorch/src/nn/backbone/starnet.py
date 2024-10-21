@@ -107,7 +107,7 @@ class StarNet(nn.Module):
         block_nums = [1, 2, 6, 2]
         mlp_ratio = 4
         drop_path_rate = 0.0
-        ch_in = 64
+        ch_in = 32
         if variant in ['c', 'd']:
             conv_def = [
                 [3, ch_in // 2, 3, 2, "conv1_1"],
@@ -117,12 +117,12 @@ class StarNet(nn.Module):
         else:
             conv_def = [[3, ch_in, 7, 2, "conv1_1"]]
 
-        self.conv1 = nn.Sequential(OrderedDict([
-            (name, ConvNormLayer(cin, cout, k, s, act=act)) for cin, cout, k, s, name in conv_def
-        ]))
-        # self.stem = nn.Sequential(ConvBN(3, ch_in, kernel_size=3, stride=2, padding=1), nn.ReLU6())
+        # self.conv1 = nn.Sequential(OrderedDict([
+        #     (name, ConvNormLayer(cin, cout, k, s, act=act)) for cin, cout, k, s, name in conv_def
+        # ]))
+        self.stem = nn.Sequential(ConvBN(3, ch_in, kernel_size=3, stride=2, padding=1), nn.ReLU6())
 
-        ch_out_list = [64, 128, 256, 512]
+        ch_out_list = [32, 64, 128, 256]
 
 
         _out_channels = ch_out_list
@@ -155,10 +155,10 @@ class StarNet(nn.Module):
 
         if pretrained:
             if isinstance(pretrained, bool) or 'http' in pretrained:
-                state = torch.hub.load_state_dict_from_url(model_urls[name], map_location='cpu')
+                state = torch.hub.load_state_dict_from_url(model_urls[name], map_location='cpu')['state_dict']
             # else:
             #     state = torch.load(pretrained, map_location='cpu')
-                self.load_state_dict(state)
+                self.load_state_dict(state, strict=False)
                 print(f'Load StarNet{name} state_dict')
 
     def _freeze_parameters(self, m: nn.Module):
@@ -185,10 +185,11 @@ class StarNet(nn.Module):
             elif isinstance(m, nn.Linear):
                 init.constant_(m.bias, 0)
     def forward(self, x):
-        x = self.conv1(x)
+        x = self.stem(x)
         outs = []
         for idx, stage in enumerate(self.stages):
             x = stage(x)
+            print(x.shape)
             if idx in self.return_idx:
                 outs.append(x)
         return outs
