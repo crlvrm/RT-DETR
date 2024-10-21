@@ -189,7 +189,7 @@ class StarNet(nn.Module):
         outs = []
         for idx, stage in enumerate(self.stages):
             x = stage(x)
-            print(x.shape)
+
             if idx in self.return_idx:
                 outs.append(x)
         return outs
