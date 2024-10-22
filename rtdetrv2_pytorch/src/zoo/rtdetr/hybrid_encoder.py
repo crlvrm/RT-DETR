@@ -392,7 +392,6 @@ class HybridEncoder(nn.Module):
             feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
             inner_outs[0] = feat_heigh
             if self.dysample:
-                print('True')
                 dys = DySample(self.hidden_dim).to(feat_heigh.device)
                 upsample_feat = dys(feat_heigh)
             else:
