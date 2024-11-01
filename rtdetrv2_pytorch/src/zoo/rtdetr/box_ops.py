@@ -62,6 +62,36 @@ def generalized_box_iou(boxes1, boxes2):
 
     return iou - (area - union) / area
 
+def powerful_box_iou(boxes1, boxes2):
+    # degenerate boxes gives inf / nan results
+    # so do an early check
+    assert (boxes1[:, 2:] >= boxes1[:, :2]).all()
+    assert (boxes2[:, 2:] >= boxes2[:, :2]).all()
+    iou, union = box_iou(boxes1, boxes2)
+    Lambda = 1.3
+    eps = 1e-7
+    # PIoU-specific calculation
+    b1_x1, b1_y1, b1_x2, b1_y2 = boxes1[:, 0], boxes1[:, 1], boxes1[:, 2], boxes1[:, 3]
+    b2_x1, b2_y1, b2_x2, b2_y2 = boxes2[:, 0], boxes2[:, 1], boxes2[:, 2], boxes2[:, 3]
+
+    w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + eps
+    w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + eps
+
+    # PIoU penalty term
+    dw1 = torch.abs(b1_x2.minimum(b1_x1) - b2_x2.minimum(b2_x1))
+    dw2 = torch.abs(b1_x2.maximum(b1_x1) - b2_x2.maximum(b2_x1))
+    dh1 = torch.abs(b1_y2.minimum(b1_y1) - b2_y2.minimum(b2_y1))
+    dh2 = torch.abs(b1_y2.maximum(b1_y1) - b2_y2.maximum(b2_y1))
+    P = ((dw1 + dw2) / torch.abs(w2) + (dh1 + dh2) / torch.abs(h2)) / 4
+
+    # Compute PIoUv2 loss
+    L_v1 = 1 - iou - torch.exp(- P ** 2) + 1
+    q = torch.exp(-P)
+    x = q * Lambda
+    piou = 3 * x * torch.exp(-x ** 2) * L_v1
+
+    return piou
+
 
 def masks_to_boxes(masks):
     """Compute the bounding boxes around the provided masks

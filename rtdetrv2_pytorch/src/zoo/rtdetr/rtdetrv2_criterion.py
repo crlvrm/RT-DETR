@@ -9,7 +9,7 @@ import torchvision
 
 import copy
 
-from .box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
+from .box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou, powerful_box_iou
 from ...misc.dist_utils import get_world_size, is_dist_available_and_initialized
 from ...core import register
 
@@ -109,9 +109,11 @@ class RTDETRCriterionv2(nn.Module):
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
 
-        loss_giou = 1 - torch.diag(generalized_box_iou(\
+        # loss_giou = 1 - torch.diag(generalized_box_iou(\
+        #     box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)))
+        loss_piou = torch.diag(powerful_box_iou(\
             box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes)))
-        loss_giou = loss_giou if boxes_weight is None else loss_giou * boxes_weight
+        loss_giou = loss_piou if boxes_weight is None else loss_piou * boxes_weight
         losses['loss_giou'] = loss_giou.sum() / num_boxes
         return losses
 
