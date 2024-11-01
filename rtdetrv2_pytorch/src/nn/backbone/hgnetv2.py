@@ -239,7 +239,7 @@ class HG_Block(nn.Module):
             kernel_size=1,
             stride=1,
             use_lab=use_lab)
-        self.attention = EMA(total_channels)
+        # self.attention = EMA(total_channels)
 
     def forward(self, x):
         identity = x
