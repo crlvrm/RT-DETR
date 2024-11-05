@@ -19,6 +19,7 @@ HGNetv2:
   name: 'L'
   return_idx: [1, 2, 3]
   freeze_at: 0
+  freeze_stem_only: True
   freeze_norm: True
   pretrained: True
 

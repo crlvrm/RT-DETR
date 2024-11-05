@@ -71,6 +71,7 @@ class ConvBNAct(nn.Module):
         super().__init__()
         self.use_act = use_act
         self.use_lab = use_lab
+        # groups = in_channels if in_channels == out_channels else groups
         if padding == 'same':
             self.conv = nn.Sequential(
                 nn.ZeroPad2d([0, 1, 0, 1]),
@@ -355,6 +356,7 @@ class HGNetv2(nn.Module):
                  name,
                  use_lab=False,
                  return_idx=[1, 2, 3],
+                 freeze_stem_only=True,
                  freeze_at=-1,
                  freeze_norm=False,
                  pretrained=False):
@@ -394,12 +396,13 @@ class HGNetv2(nn.Module):
                     kernel_size,
                     use_lab))
 
-        self._init_weights()
+        # self._init_weights()
 
         if freeze_at >= 0:
             self._freeze_parameters(self.stem)
-            for i in range(min(freeze_at, 4)):
-                self._freeze_parameters(self.stages[i])
+            if not freeze_stem_only:
+                for i in range(min(freeze_at, 4)):
+                    self._freeze_parameters(self.stages[i])
 
         if freeze_norm:
             self._freeze_norm(self)
