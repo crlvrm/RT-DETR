@@ -28,7 +28,112 @@ def constant_init(module, val, bias=0):
         nn.init.constant_(module.weight, val)
     if hasattr(module, 'bias') and module.bias is not None:
         nn.init.constant_(module.bias, bias)
+class ConvNormLayer_fuse(nn.Module):
+    def __init__(self, ch_in, ch_out, kernel_size, stride, g=1, padding=None, bias=False, act=None):
+        super().__init__()
+        padding = (kernel_size-1)//2 if padding is None else padding
+        self.conv = nn.Conv2d(
+            ch_in,
+            ch_out,
+            kernel_size,
+            stride,
+            groups=g,
+            padding=padding,
+            bias=bias)
+        self.norm = nn.BatchNorm2d(ch_out)
+        self.act = nn.Identity() if act is None else get_activation(act)
+        self.ch_in, self.ch_out, self.kernel_size, self.stride, self.g, self.padding, self.bias = \
+            ch_in, ch_out, kernel_size, stride, g, padding, bias
 
+    def forward(self, x):
+        if hasattr(self, 'conv_bn_fused'):
+            y = self.conv_bn_fused(x)
+        else:
+            y = self.norm(self.conv(x))
+        return self.act(y)
+
+    def convert_to_deploy(self):
+        if not hasattr(self, 'conv_bn_fused'):
+            self.conv_bn_fused = nn.Conv2d(
+                self.ch_in,
+                self.ch_out,
+                self.kernel_size,
+                self.stride,
+                groups=self.g,
+                padding=self.padding,
+                bias=True)
+
+        kernel, bias = self.get_equivalent_kernel_bias()
+        self.conv_bn_fused.weight.data = kernel
+        self.conv_bn_fused.bias.data = bias
+        self.__delattr__('conv')
+        self.__delattr__('norm')
+
+    def get_equivalent_kernel_bias(self):
+        kernel3x3, bias3x3 = self._fuse_bn_tensor()
+
+        return kernel3x3, bias3x3
+
+    def _fuse_bn_tensor(self):
+        kernel = self.conv.weight
+        running_mean = self.norm.running_mean
+        running_var = self.norm.running_var
+        gamma = self.norm.weight
+        beta = self.norm.bias
+        eps = self.norm.eps
+        std = (running_var + eps).sqrt()
+        t = (gamma / std).reshape(-1, 1, 1, 1)
+        return kernel * t, beta - running_mean * gamma / std
+
+class SCDown(nn.Module):
+    def __init__(self, c1, c2, k, s):
+        super().__init__()
+        self.cv1 = ConvNormLayer_fuse(c1, c2, 1, 1)
+        self.cv2 = ConvNormLayer_fuse(c2, c2, k, s, c2)
+
+    def forward(self, x):
+        return self.cv2(self.cv1(x))
+class ADown(nn.Module):
+    """ADown."""
+
+    def __init__(self, c1, c2):
+        """Initializes ADown module with convolution layers to downsample input from channels c1 to c2."""
+        super().__init__()
+        self.c = c2 // 2
+        self.cv1 = ConvNormLayer_fuse(c1 // 2, self.c, 1, 1)
+        # self.cv1 = ConvNormLayer(c1 // 2, self.c, 3, 2, 1)
+        self.cv3 = ConvNormLayer_fuse(self.c, self.c, 3, 2, self.c)
+        self.cv2 = ConvNormLayer_fuse(c1 // 2, self.c, 1, 1)
+
+    def forward(self, x):
+        """Forward pass through ADown layer."""
+        x = torch.nn.functional.avg_pool2d(x, 2, 1, 0, False, True)
+        x1, x2 = x.chunk(2, 1)
+        x1 = self.cv3(self.cv1(x1))
+        x2 = torch.nn.functional.max_pool2d(x2, 3, 2, 1)
+        x2 = self.cv2(x2)
+        return torch.cat((x1, x2), 1)
+
+class SPPF(nn.Module):
+    """Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher."""
+
+    def __init__(self, c1, c2, k=5):
+        """
+        Initializes the SPPF layer with given input/output channels and kernel size.
+
+        This module is equivalent to SPP(k=(5, 9, 13)).
+        """
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = ConvNormLayer(c1, c_, 1, 1)
+        self.cv2 = ConvNormLayer(c_ * 4, c2, 1, 1)
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+    def forward(self, x):
+        """Forward pass through Ghost Convolution block."""
+        y = [self.cv1(x)]
+        y.extend(self.m(y[-1]) for _ in range(3))
+        return self.cv2(torch.cat(y, 1))
 
 class DySample(nn.Module):
     def __init__(self, in_channels, scale=2, style='lp', groups=4, dyscope=False):
@@ -189,6 +294,27 @@ class CSPRepLayer(nn.Module):
         return self.conv3(self.attention(x_1) + x_2)
         # return self.conv3(x_1 + x_2)
 
+class RepNCSPELAN4(nn.Module):
+    # csp-elan
+    def __init__(self, c1, c2, c3, c4, n=3,
+                 bias=False,
+                 act="silu"):
+        super().__init__()
+        self.c = c3//2
+        self.cv1 = ConvNormLayer_fuse(c1, c3, 1, 1, bias=bias, act=act)
+        self.cv2 = nn.Sequential(CSPRepLayer(c3//2, c4, n, 1, bias=bias, act=act), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv3 = nn.Sequential(CSPRepLayer(c4, c4, n, 1, bias=bias, act=act), ConvNormLayer_fuse(c4, c4, 3, 1, bias=bias, act=act))
+        self.cv4 = ConvNormLayer_fuse(c3+(2*c4), c2, 1, 1, bias=bias, act=act)
+
+    def forward_chunk(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend((m(y[-1])) for m in [self.cv2, self.cv3])
+        return self.cv4(torch.cat(y, 1))
+
+    def forward(self, x):
+        y = list(self.cv1(x).split((self.c, self.c), 1))
+        y.extend(m(y[-1]) for m in [self.cv2, self.cv3])
+        return self.cv4(torch.cat(y, 1))
 
 # transformer
 class TransformerEncoderLayer(nn.Module):
@@ -305,7 +431,7 @@ class HybridEncoder(nn.Module):
                 raise AttributeError()
                 
             self.input_proj.append(proj)
-
+        # self.sppf = SPPF(hidden_dim, hidden_dim)
         # encoder transformer
         encoder_layer = TransformerEncoderLayer(
             hidden_dim, 
@@ -322,9 +448,13 @@ class HybridEncoder(nn.Module):
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1, 0, -1):
-            self.lateral_convs.append(ConvNormLayer(hidden_dim, hidden_dim, 1, 1, act=act))
+            # 替换为融合卷积和yolov9中的GELAN
+            self.lateral_convs.append(ConvNormLayer_fuse(hidden_dim, hidden_dim, 1, 1, act=act))
             self.fpn_blocks.append(
-                CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
+                # CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
+                             round(3 * depth_mult))
+
             )
 
         # bottom-up pan
@@ -332,10 +462,12 @@ class HybridEncoder(nn.Module):
         self.pan_blocks = nn.ModuleList()
         for _ in range(len(in_channels) - 1):
             self.downsample_convs.append(
-                ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
+                # ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
+                SCDown(hidden_dim, hidden_dim,3,2),
             )
             self.pan_blocks.append(
-                CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
+                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
+                             round(3 * depth_mult))
             )
 
         self._reset_parameters()
@@ -375,6 +507,7 @@ class HybridEncoder(nn.Module):
         # encoder
         if self.num_encoder_layers > 0:
             for i, enc_ind in enumerate(self.use_encoder_idx):
+                # proj_feats[enc_ind] = self.sppf(proj_feats[enc_ind])
                 h, w = proj_feats[enc_ind].shape[2:]
                 # flatten [B, C, H, W] to [B, HxW, C]
                 src_flatten = proj_feats[enc_ind].flatten(2).permute(0, 2, 1)
