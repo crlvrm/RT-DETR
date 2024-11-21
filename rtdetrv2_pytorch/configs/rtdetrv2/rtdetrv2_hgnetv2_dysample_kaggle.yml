@@ -25,6 +25,7 @@ HGNetv2:
 
 HybridEncoder:
   dysample: True
+  bifpn: True
 
 optimizer:
   type: AdamW

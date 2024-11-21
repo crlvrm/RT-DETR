@@ -136,7 +136,7 @@ class SPPF(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 class DySample(nn.Module):
-    def __init__(self, in_channels, scale=2, style='lp', groups=4, dyscope=False):
+    def __init__(self, in_channels, scale=2, style='lp', groups=4, dyscope=True):
         super().__init__()
         self.scale = scale
         self.style = style
@@ -403,7 +403,8 @@ class HybridEncoder(nn.Module):
                  act='silu',
                  eval_spatial_size=None, 
                  version='v2',
-                 dysample=False):
+                 dysample=False,
+                 bifpn=False):
         super().__init__()
         self.in_channels = in_channels
         self.feat_strides = feat_strides
@@ -415,6 +416,7 @@ class HybridEncoder(nn.Module):
         self.out_channels = [hidden_dim for _ in range(len(in_channels))]
         self.out_strides = feat_strides
         self.dysample = dysample
+        self.bifpn = bifpn
         # channel projection
         self.input_proj = nn.ModuleList()
         for in_channel in in_channels:
@@ -469,6 +471,9 @@ class HybridEncoder(nn.Module):
                 RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
                              round(3 * depth_mult))
             )
+        if self.bifpn:
+            self.bifpn_blocks = RepNCSPELAN4(hidden_dim * 3, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
+                             round(3 * depth_mult))
 
         self._reset_parameters()
 
@@ -540,7 +545,10 @@ class HybridEncoder(nn.Module):
             feat_low = outs[-1]
             feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsample_convs[idx](feat_low)
-            out = self.pan_blocks[idx](torch.concat([downsample_feat, feat_height], dim=1))
+            if idx==0 and self.bifpn:
+                out = self.bifpn_blocks(torch.concat([downsample_feat, feat_height, proj_feats[idx+1]], dim=1))
+            else:
+                out = self.pan_blocks[idx](torch.concat([downsample_feat, feat_height], dim=1))
             outs.append(out)
 
         return outs
