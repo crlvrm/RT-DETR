@@ -382,6 +382,35 @@ class TransformerEncoder(nn.Module):
 
         return output
 
+class EfficentTransformerEncoder(nn.Module):
+    def __init__(self, encoder_layer, num_layers, in_channel, norm=None):
+        super(EfficentTransformerEncoder, self).__init__()
+        self.c = int(in_channel )
+        self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(num_layers)])
+        self.num_layers = num_layers
+        self.norm = norm
+        self.cv2 = ConvNormLayer_fuse(2 * self.c, in_channel, 1, 1, act='silu')
+        self.ffn = nn.Sequential(ConvNormLayer_fuse(self.c, self.c * 2, 1, 1, act='silu'), ConvNormLayer_fuse(self.c * 2, self.c, 1, 1))
+
+    def forward(self, src, src_mask=None, pos_embed=None) -> torch.Tensor:
+
+        b = src
+        for layer in self.layers:
+            h, w = b.shape[2:]
+            src_flatten = b.flatten(2).permute(0, 2, 1)
+            b = b + layer(src_flatten, src_mask=src_mask, pos_embed=pos_embed).permute(0, 2, 1).reshape(-1, self.c, h, w)
+            b = b + self.ffn(b)
+        return self.cv2(torch.cat((src, b), 1))
+        # output = src
+        # for layer in self.layers:
+        #     output = layer(output, src_mask=src_mask, pos_embed=pos_embed)
+        #
+        # if self.norm is not None:
+        #     output = self.norm(output)
+        # output = output + src
+        # output = output + self.ffn(output)
+        # output = self.cv2(torch.cat((src, output), dim=1))
+        # return output
 
 @register()
 class HybridEncoder(nn.Module):
@@ -436,16 +465,18 @@ class HybridEncoder(nn.Module):
         # self.sppf = SPPF(hidden_dim, hidden_dim)
         # encoder transformer
         encoder_layer = TransformerEncoderLayer(
-            hidden_dim, 
+            hidden_dim,
             nhead=nhead,
             dim_feedforward=dim_feedforward, 
             dropout=dropout,
             activation=enc_act)
 
+        # self.encoder = nn.ModuleList([
+        #     TransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers) for _ in range(len(use_encoder_idx))
+        # ])
         self.encoder = nn.ModuleList([
-            TransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers) for _ in range(len(use_encoder_idx))
+            EfficentTransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers,  hidden_dim) for _ in range(len(use_encoder_idx))
         ])
-
         # top-down fpn
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
@@ -522,8 +553,10 @@ class HybridEncoder(nn.Module):
                 else:
                     pos_embed = getattr(self, f'pos_embed{enc_ind}', None).to(src_flatten.device)
 
-                memory :torch.Tensor = self.encoder[i](src_flatten, pos_embed=pos_embed)
-                proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
+                # memory :torch.Tensor = self.encoder[i](src_flatten, pos_embed=pos_embed)
+                # proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
+                memory: torch.Tensor = self.encoder[i](proj_feats[enc_ind], pos_embed=pos_embed)
+                proj_feats[enc_ind] = memory.contiguous()
 
         # broadcasting and fusion
         inner_outs = [proj_feats[-1]]
