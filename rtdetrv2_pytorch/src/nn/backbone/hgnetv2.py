@@ -2,7 +2,6 @@
 
 https://github.com/PaddlePaddle/PaddleDetection/blob/develop/ppdet/modeling/backbones/hgnet_v2.py
 """
-import os
 
 import torch
 import torch.nn as nn
@@ -241,7 +240,7 @@ class HG_Block(nn.Module):
             kernel_size=1,
             stride=1,
             use_lab=use_lab)
-        self.attention = EMA(total_channels)
+        # self.attention = EMA(total_channels)
 
     def forward(self, x):
         identity = x
@@ -251,7 +250,7 @@ class HG_Block(nn.Module):
             x = layer(x)
             output.append(x)
         x = torch.concat(output, dim=1)
-        x = self.attention(x)
+        # x = self.attention(x)
         x = self.aggregation_squeeze_conv(x)
         x = self.aggregation_excitation_conv(x)
         if self.identity:
@@ -371,8 +370,7 @@ class HGNetv2(nn.Module):
                  freeze_stem_only=True,
                  freeze_at=-1,
                  freeze_norm=False,
-                 pretrained=False,
-                 local_model_dir='weight/hgnetv2/'):
+                 pretrained=False):
         super().__init__()
         self.use_lab = use_lab
         self.return_idx = return_idx
@@ -421,39 +419,12 @@ class HGNetv2(nn.Module):
             self._freeze_norm(self)
 
         if pretrained:
-            # if isinstance(pretrained, bool) or 'http' in pretrained:
-            #     state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu')
-            # else:
-            #     state = torch.load(pretrained, map_location='cpu')
-            # self.load_state_dict(state)
-            # print(f'Load HGNetv2_{name} state_dict')
-            RED, GREEN, RESET = "\033[91m", "\033[92m", "\033[0m"
-            try:
-                model_path = local_model_dir + 'PPHGNetV2_' + name + '_stage1.pth'
-                if os.path.exists(model_path):
-                    state = torch.load(model_path, map_location='cpu')
-                    print(f"Loaded stage1 {name} HGNetV2 from local file.")
-                else:
-                    # If the file doesn't exist locally, download from the URL
-                    if torch.distributed.get_rank() == 0:
-                        print(
-                            GREEN + "If the pretrained HGNetV2 can't be downloaded automatically. Please check your network connection." + RESET)
-                        print(
-                            GREEN + "Please check your network connection. Or download the model manually from " + RESET + f"{download_url}" + GREEN + " to " + RESET + f"{local_model_dir}." + RESET)
-                        state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu',
-                                                                   model_dir=local_model_dir)
-                        torch.distributed.barrier()
-                    else:
-                        torch.distributed.barrier()
-                        state = torch.load(local_model_dir)
-
-                    print(f"Loaded stage1 {name} HGNetV2 from URL.")
-
-                self.load_state_dict(state)
-            except (Exception, KeyboardInterrupt) as e:
-                if torch.distributed.get_rank() == 0:
-                    print(f"{str(e)}")
-                exit()
+            if isinstance(pretrained, bool) or 'http' in pretrained:
+                state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu')
+            else:
+                state = torch.load(pretrained, map_location='cpu')
+            self.load_state_dict(state)
+            print(f'Load HGNetv2_{name} state_dict')
         
 
     def _init_weights(self):

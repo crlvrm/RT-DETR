@@ -12,7 +12,7 @@ from .utils import get_activation
 
 from ...core import register
 
-from ...nn.backbone.hgnetv2 import EMA
+from ...nn.backbone.hgnetv2_ema import EMA
 
 __all__ = ['HybridEncoder']
 
