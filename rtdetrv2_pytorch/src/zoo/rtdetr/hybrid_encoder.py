@@ -471,12 +471,12 @@ class HybridEncoder(nn.Module):
             dropout=dropout,
             activation=enc_act)
 
-        # self.encoder = nn.ModuleList([
-        #     TransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers) for _ in range(len(use_encoder_idx))
-        # ])
         self.encoder = nn.ModuleList([
-            EfficentTransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers,  hidden_dim) for _ in range(len(use_encoder_idx))
+            TransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers) for _ in range(len(use_encoder_idx))
         ])
+        # self.encoder = nn.ModuleList([
+        #     EfficentTransformerEncoder(copy.deepcopy(encoder_layer), num_encoder_layers,  hidden_dim) for _ in range(len(use_encoder_idx))
+        # ])
         # top-down fpn
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
@@ -553,10 +553,10 @@ class HybridEncoder(nn.Module):
                 else:
                     pos_embed = getattr(self, f'pos_embed{enc_ind}', None).to(src_flatten.device)
 
-                # memory :torch.Tensor = self.encoder[i](src_flatten, pos_embed=pos_embed)
-                # proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
-                memory: torch.Tensor = self.encoder[i](proj_feats[enc_ind], pos_embed=pos_embed)
-                proj_feats[enc_ind] = memory.contiguous()
+                memory :torch.Tensor = self.encoder[i](src_flatten, pos_embed=pos_embed)
+                proj_feats[enc_ind] = memory.permute(0, 2, 1).reshape(-1, self.hidden_dim, h, w).contiguous()
+                # memory: torch.Tensor = self.encoder[i](proj_feats[enc_ind], pos_embed=pos_embed)
+                # proj_feats[enc_ind] = memory.contiguous()
 
         # broadcasting and fusion
         inner_outs = [proj_feats[-1]]
