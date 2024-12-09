@@ -73,7 +73,10 @@ class RPEModule(nn.Module):
         # topk方式有待优化，参考x和y轴融合方式(rpe_level ** 2).sum(dim=-1)
         B, nQ, hw = rpe_level.shape[:3]
         rpe_level = rpe_level.reshape(B, nQ, hw, self.num_heads, 2)
-        distance = (rpe_level ** 2).sum(dim=-1).sqrt()
+        weight_x = 0.5
+        weight_y = 0.5
+        distance = weight_x * rpe_level[..., 0].abs() + weight_y * rpe_level[..., 1].abs()
+        # distance = (rpe_level ** 2).sum(dim=-1).sqrt()
         _, topk_indices = torch.topk(distance, k=self.num_points, dim=2)  # 找到最重要的 num_points 个点
         rpe = torch.gather(
             rpe_level,
