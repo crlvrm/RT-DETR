@@ -357,8 +357,8 @@ class TransformerDecoderLayer(nn.Module):
         self.norm1 = nn.LayerNorm(d_model)
 
         # cross attention
-        # self.cross_attn = MSDeformableAttention(d_model, n_head, n_levels, n_points, method=cross_attn_method)
-        self.cross_attn = MSGlobalDeformableAttention(d_model, n_head, n_levels, n_points, method=cross_attn_method)
+        self.cross_attn = MSDeformableAttention(d_model, n_head, n_levels, n_points, method=cross_attn_method)
+        # self.cross_attn = MSGlobalDeformableAttention(d_model, n_head, n_levels, n_points, method=cross_attn_method)
         self.dropout2 = nn.Dropout(dropout)
         self.norm2 = nn.LayerNorm(d_model)
 
