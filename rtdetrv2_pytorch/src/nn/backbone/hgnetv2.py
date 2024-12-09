@@ -2,6 +2,7 @@
 
 https://github.com/PaddlePaddle/PaddleDetection/blob/develop/ppdet/modeling/backbones/hgnet_v2.py
 """
+import os
 
 import torch
 import torch.nn as nn
@@ -240,7 +241,7 @@ class HG_Block(nn.Module):
             kernel_size=1,
             stride=1,
             use_lab=use_lab)
-        # self.attention = EMA(total_channels)
+        self.attention = EMA(total_channels)
 
     def forward(self, x):
         identity = x
@@ -250,7 +251,7 @@ class HG_Block(nn.Module):
             x = layer(x)
             output.append(x)
         x = torch.concat(output, dim=1)
-        # x = self.attention(x)
+        x = self.attention(x)
         x = self.aggregation_squeeze_conv(x)
         x = self.aggregation_excitation_conv(x)
         if self.identity:
@@ -315,6 +316,17 @@ class HGNetv2(nn.Module):
     """
 
     arch_configs = {
+        'M': {
+            'stem_channels': [3, 24, 32],
+            'stage_config': {
+                # in_channels, mid_channels, out_channels, num_blocks, downsample, light_block, kernel_size, layer_num
+                "stage1": [32, 32, 96, 1, False, False, 3, 4],
+                "stage2": [96, 64, 384, 1, True, False, 3, 4],
+                "stage3": [384, 128, 768, 3, True, True, 5, 4],
+                "stage4": [768, 256, 1536, 1, True, True, 5, 4],
+            },
+            'url': 'https://github.com/Peterande/storage/releases/download/dfinev1.0/PPHGNetV2_B2_stage1.pth'
+        },
         'L': {
             'stem_channels': [3, 32, 48],
             'stage_config': {
@@ -359,7 +371,8 @@ class HGNetv2(nn.Module):
                  freeze_stem_only=True,
                  freeze_at=-1,
                  freeze_norm=False,
-                 pretrained=False):
+                 pretrained=False,
+                 local_model_dir='weight/hgnetv2/'):
         super().__init__()
         self.use_lab = use_lab
         self.return_idx = return_idx
@@ -408,12 +421,39 @@ class HGNetv2(nn.Module):
             self._freeze_norm(self)
 
         if pretrained:
-            if isinstance(pretrained, bool) or 'http' in pretrained:
-                state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu')
-            else:
-                state = torch.load(pretrained, map_location='cpu')
-            self.load_state_dict(state)
-            print(f'Load HGNetv2_{name} state_dict')
+            # if isinstance(pretrained, bool) or 'http' in pretrained:
+            #     state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu')
+            # else:
+            #     state = torch.load(pretrained, map_location='cpu')
+            # self.load_state_dict(state)
+            # print(f'Load HGNetv2_{name} state_dict')
+            RED, GREEN, RESET = "\033[91m", "\033[92m", "\033[0m"
+            try:
+                model_path = local_model_dir + 'PPHGNetV2_' + name + '_stage1.pth'
+                if os.path.exists(model_path):
+                    state = torch.load(model_path, map_location='cpu')
+                    print(f"Loaded stage1 {name} HGNetV2 from local file.")
+                else:
+                    # If the file doesn't exist locally, download from the URL
+                    if torch.distributed.get_rank() == 0:
+                        print(
+                            GREEN + "If the pretrained HGNetV2 can't be downloaded automatically. Please check your network connection." + RESET)
+                        print(
+                            GREEN + "Please check your network connection. Or download the model manually from " + RESET + f"{download_url}" + GREEN + " to " + RESET + f"{local_model_dir}." + RESET)
+                        state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu',
+                                                                   model_dir=local_model_dir)
+                        torch.distributed.barrier()
+                    else:
+                        torch.distributed.barrier()
+                        state = torch.load(local_model_dir)
+
+                    print(f"Loaded stage1 {name} HGNetV2 from URL.")
+
+                self.load_state_dict(state)
+            except (Exception, KeyboardInterrupt) as e:
+                if torch.distributed.get_rank() == 0:
+                    print(f"{str(e)}")
+                exit()
         
 
     def _init_weights(self):
