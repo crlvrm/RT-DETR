@@ -538,14 +538,13 @@ class HGNetv2(nn.Module):
                         print(GREEN + "If the pretrained HGNetV2 can't be downloaded automatically. Please check your network connection." + RESET)
                         print(GREEN + "Please check your network connection. Or download the model manually from " + RESET + f"{download_url}" + GREEN + " to " + RESET + f"{local_model_dir}." + RESET)
                         state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu', model_dir=local_model_dir)
-                        torch.distributed.barrier()
                     else:
-                        torch.distributed.barrier()
-                        state = torch.load(model_path,  map_location='cpu')
+                        state = torch.load(model_path,  map_location='cpu', weights_only=True)
 
                     print(f"Loaded stage1 {name} HGNetV2 from URL.")
-
+                torch.distributed.barrier()
                 self.load_state_dict(state, strict=False)
+                print(f'Load HGNetv2_{name} state_dict')
 
             except (Exception, KeyboardInterrupt) as e:
                 if torch.distributed.get_rank() == 0:
