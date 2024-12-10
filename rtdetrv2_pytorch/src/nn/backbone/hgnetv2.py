@@ -240,7 +240,11 @@ class HG_Block(nn.Module):
             kernel_size=1,
             stride=1,
             use_lab=use_lab)
-        # self.attention = EMA(out_channels)
+        # Initialize attention only if identity is True
+        if self.identity:
+            self.attention = EMA(out_channels)
+        else:
+            self.attention = None
 
     def forward(self, x):
         identity = x
@@ -250,11 +254,10 @@ class HG_Block(nn.Module):
             x = layer(x)
             output.append(x)
         x = torch.concat(output, dim=1)
-        # x = self.attention(x)
         x = self.aggregation_squeeze_conv(x)
         x = self.aggregation_excitation_conv(x)
-        if self.identity:
-            # x = self.attention(x)
+        if self.identity and self.attention is not None:
+            x = self.attention(x)
             x = x + identity
         return x
 
