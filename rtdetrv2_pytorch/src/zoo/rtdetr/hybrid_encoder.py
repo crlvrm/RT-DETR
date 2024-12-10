@@ -493,19 +493,21 @@ class HybridEncoder(nn.Module):
         # bottom-up pan
         self.downsample_convs = nn.ModuleList()
         self.pan_blocks = nn.ModuleList()
-        for _ in range(len(in_channels) - 1):
+        for i in range(len(in_channels) - 1):
             self.downsample_convs.append(
                 # ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
                 SCDown(hidden_dim, hidden_dim,3,2),
             )
-            self.pan_blocks.append(
-                RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
-                             round(3 * depth_mult))
-            )
-        if self.bifpn:
-            self.bifpn_blocks = RepNCSPELAN4(hidden_dim * 3, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
-                             round(3 * depth_mult))
-
+            if i==0 and self.bifpn:
+                self.pan_blocks.append(
+                    RepNCSPELAN4(hidden_dim * 3, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
+                                 round(3 * depth_mult))
+                )
+            else:
+                self.pan_blocks.append(
+                    RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
+                                 round(3 * depth_mult))
+                )
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -579,9 +581,10 @@ class HybridEncoder(nn.Module):
             feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsample_convs[idx](feat_low)
             if idx==0 and self.bifpn:
-                out = self.bifpn_blocks(torch.concat([downsample_feat, feat_height, proj_feats[idx+1]], dim=1))
+                inp = torch.concat([downsample_feat, feat_height, proj_feats[idx+1]], dim=1)
             else:
-                out = self.pan_blocks[idx](torch.concat([downsample_feat, feat_height], dim=1))
+                inp = torch.concat([downsample_feat, feat_height], dim=1)
+            out = self.pan_blocks[idx](inp)
             outs.append(out)
 
         return outs
