@@ -499,7 +499,7 @@ class HybridEncoder(nn.Module):
                 # ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
                 SCDown(hidden_dim, hidden_dim,3,2),
             )
-            if i==0 and self.bifpn:
+            if i==0:
                 self.pan_blocks.append(
                     RepNCSPELAN4(hidden_dim * 3, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
                                  round(3 * depth_mult))
@@ -568,11 +568,8 @@ class HybridEncoder(nn.Module):
             feat_low = proj_feats[idx - 1]
             feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
             inner_outs[0] = feat_heigh
-            if self.dysample:
-
-                upsample_feat = self.dys[len(self.in_channels) - 1 - idx](feat_heigh)
-            else:
-                upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
+            upsample_feat = self.dys[len(self.in_channels) - 1 - idx](feat_heigh)
+            # upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
             inner_out = self.fpn_blocks[len(self.in_channels)-1-idx](torch.concat([upsample_feat, feat_low], dim=1))
             inner_outs.insert(0, inner_out)
 
@@ -581,7 +578,7 @@ class HybridEncoder(nn.Module):
             feat_low = outs[-1]
             feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsample_convs[idx](feat_low)
-            if idx==0 and self.bifpn:
+            if idx==0:
                 inp = torch.concat([downsample_feat, feat_height, proj_feats[idx+1]], dim=1)
             else:
                 inp = torch.concat([downsample_feat, feat_height], dim=1)
