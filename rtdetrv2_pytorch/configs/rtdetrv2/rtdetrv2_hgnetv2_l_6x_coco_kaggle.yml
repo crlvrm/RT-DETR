@@ -21,10 +21,10 @@ HGNetv2:
   freeze_at: 0
   freeze_norm: False
   pretrained: True
-
-HybridEncoder:
-  dysample: True
-  bifpn: True
+#
+#HybridEncoder:
+#  dysample: True
+#  bifpn: True
 
 optimizer:
   type: AdamW
