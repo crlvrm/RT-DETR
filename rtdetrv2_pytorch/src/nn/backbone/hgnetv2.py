@@ -240,7 +240,7 @@ class HG_Block(nn.Module):
             kernel_size=1,
             stride=1,
             use_lab=use_lab)
-        # self.attention = EMA(total_channels)
+        self.attention = EMA(out_channels)
 
     def forward(self, x):
         identity = x
@@ -254,6 +254,7 @@ class HG_Block(nn.Module):
         x = self.aggregation_squeeze_conv(x)
         x = self.aggregation_excitation_conv(x)
         if self.identity:
+            x = self.attention(x)
             x = x + identity
         return x
 
@@ -407,7 +408,7 @@ class HGNetv2(nn.Module):
                     kernel_size,
                     use_lab))
 
-        # self._init_weights()
+        self._init_weights()
 
         if freeze_at >= 0:
             self._freeze_parameters(self.stem)
@@ -423,7 +424,7 @@ class HGNetv2(nn.Module):
                 state = torch.hub.load_state_dict_from_url(download_url, map_location='cpu')
             else:
                 state = torch.load(pretrained, map_location='cpu')
-            self.load_state_dict(state)
+            self.load_state_dict(state, strict=False)
             print(f'Load HGNetv2_{name} state_dict')
         
 

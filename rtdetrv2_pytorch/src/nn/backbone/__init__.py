@@ -16,4 +16,4 @@ from .torchvision_model import TorchVisionModel
 from .csp_resnet import CSPResNet
 from .csp_darknet import CSPDarkNet, CSPPAN
 
-from .hgnetv2_ema import HGNetv2
+from .hgnetv2 import HGNetv2

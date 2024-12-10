@@ -12,7 +12,7 @@ from .utils import get_activation
 
 from ...core import register
 
-from ...nn.backbone.hgnetv2_ema import EMA
+from ...nn.backbone.hgnetv2 import EMA
 
 __all__ = ['HybridEncoder']
 
@@ -281,7 +281,7 @@ class CSPRepLayer(nn.Module):
         self.bottlenecks = nn.Sequential(*[
             RepVggBlock(hidden_channels, hidden_channels, act=act) for _ in range(num_blocks)
         ])
-        self.attention = EMA(hidden_channels)
+        # self.attention = EMA(hidden_channels)
         if hidden_channels != out_channels:
             self.conv3 = ConvNormLayer(hidden_channels, out_channels, 1, 1, bias=bias, act=act)
         else:
@@ -291,8 +291,8 @@ class CSPRepLayer(nn.Module):
         x_1 = self.conv1(x)
         x_1 = self.bottlenecks(x_1)
         x_2 = self.conv2(x)
-        return self.conv3(self.attention(x_1) + x_2)
-        # return self.conv3(x_1 + x_2)
+        # return self.conv3(self.attention(x_1) + x_2)
+        return self.conv3(x_1 + x_2)
 
 class RepNCSPELAN4(nn.Module):
     # csp-elan
