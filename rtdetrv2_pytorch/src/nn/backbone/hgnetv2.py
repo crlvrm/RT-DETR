@@ -240,7 +240,7 @@ class HG_Block(nn.Module):
             kernel_size=1,
             stride=1,
             use_lab=use_lab)
-        self.attention = EMA(out_channels)
+        # self.attention = EMA(out_channels)
 
     def forward(self, x):
         identity = x
@@ -254,7 +254,7 @@ class HG_Block(nn.Module):
         x = self.aggregation_squeeze_conv(x)
         x = self.aggregation_excitation_conv(x)
         if self.identity:
-            x = self.attention(x)
+            # x = self.attention(x)
             x = x + identity
         return x
 
