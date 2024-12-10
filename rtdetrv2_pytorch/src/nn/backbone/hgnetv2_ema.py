@@ -541,7 +541,7 @@ class HGNetv2(nn.Module):
                         torch.distributed.barrier()
                     else:
                         torch.distributed.barrier()
-                        state = torch.load(local_model_dir)
+                        state = torch.load(model_path,  map_location='cpu')
 
                     print(f"Loaded stage1 {name} HGNetV2 from URL.")
 
