@@ -480,6 +480,7 @@ class HybridEncoder(nn.Module):
         # top-down fpn
         self.lateral_convs = nn.ModuleList()
         self.fpn_blocks = nn.ModuleList()
+        self.dys = nn.ModuleList()
         for _ in range(len(in_channels) - 1, 0, -1):
             # 替换为融合卷积和yolov9中的GELAN
             self.lateral_convs.append(ConvNormLayer_fuse(hidden_dim, hidden_dim, 1, 1, act=act))
@@ -489,7 +490,7 @@ class HybridEncoder(nn.Module):
                              round(3 * depth_mult))
 
             )
-
+            self.dys.append(DySample(self.hidden_dim))
         # bottom-up pan
         self.downsample_convs = nn.ModuleList()
         self.pan_blocks = nn.ModuleList()
@@ -568,8 +569,8 @@ class HybridEncoder(nn.Module):
             feat_heigh = self.lateral_convs[len(self.in_channels) - 1 - idx](feat_heigh)
             inner_outs[0] = feat_heigh
             if self.dysample:
-                dys = DySample(self.hidden_dim).to(feat_heigh.device)
-                upsample_feat = dys(feat_heigh)
+
+                upsample_feat = self.dys[len(self.in_channels) - 1 - idx](feat_heigh)
             else:
                 upsample_feat = F.interpolate(feat_heigh, scale_factor=2., mode='nearest')
             inner_out = self.fpn_blocks[len(self.in_channels)-1-idx](torch.concat([upsample_feat, feat_low], dim=1))
