@@ -239,7 +239,7 @@ class HG_Block(nn.Module):
             residual=False,
             light_block=False,
             use_lab=False,
-            agg='ese',
+            agg='se',
             drop_path=0.,
     ):
         super().__init__()
@@ -303,6 +303,10 @@ class HG_Block(nn.Module):
             )
 
         self.drop_path = nn.Dropout(drop_path) if drop_path else nn.Identity()
+        if self.residual:
+            self.attention = EMA(out_chs)
+        else:
+            self.attention = None
 
     def forward(self, x):
         identity = x
@@ -312,7 +316,8 @@ class HG_Block(nn.Module):
             output.append(x)
         x = torch.cat(output, dim=1)
         x = self.aggregation(x)
-        if self.residual:
+        if self.residual and self.attention is not None:
+            x = self.attention(x)
             x = self.drop_path(x) + identity
         return x
 
@@ -329,7 +334,7 @@ class HG_Stage(nn.Module):
             light_block=False,
             kernel_size=3,
             use_lab=False,
-            agg='ese',
+            agg='se',
             drop_path=0.,
     ):
         super().__init__()
