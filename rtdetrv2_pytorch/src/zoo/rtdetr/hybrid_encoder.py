@@ -729,21 +729,21 @@ class HybridEncoder(nn.Module):
         # bottom-up pan
         self.downsample_convs = nn.ModuleList()
         self.pan_blocks = nn.ModuleList()
-        self.conca = nn.ModuleList()
+        # self.conca = nn.ModuleList()
         for i in range(len(in_channels) - 1):
             self.downsample_convs.append(
                 # ConvNormLayer(hidden_dim, hidden_dim, 3, 2, act=act)
                 SCDown(hidden_dim, hidden_dim,3,2),
             )
             if i==0:
-                self.conca.append(FFM_Concat3(Channel1 = hidden_dim, Channel2 = hidden_dim, Channel3 = hidden_dim))
+                # self.conca.append(FFM_Concat3(Channel1 = hidden_dim, Channel2 = hidden_dim, Channel3 = hidden_dim))
                 self.pan_blocks.append(
                     CSPRepLayer(hidden_dim * 3, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
                     # RepNCSPELAN4(hidden_dim * 3, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
                     #              round(3 * depth_mult))
                 )
             else:
-                self.conca.append(FFM_Concat2(Channel1 = hidden_dim, Channel2 = hidden_dim))
+                # self.conca.append(FFM_Concat2(Channel1 = hidden_dim, Channel2 = hidden_dim))
                 self.pan_blocks.append(
                     CSPRepLayer(hidden_dim * 2, hidden_dim, round(3 * depth_mult), act=act, expansion=expansion)
                     # RepNCSPELAN4(hidden_dim * 2, hidden_dim, hidden_dim * 2, round(expansion * hidden_dim // 2),
@@ -823,11 +823,11 @@ class HybridEncoder(nn.Module):
             feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsample_convs[idx](feat_low)
             if idx==0:
-                # inp = torch.concat([downsample_feat, feat_height, proj_feats[idx+1]], dim=1)
-                inp = self.conca[idx]([downsample_feat, feat_height, proj_feats[idx+1]])
+                inp = torch.concat([downsample_feat, feat_height, proj_feats[idx+1]], dim=1)
+                # inp = self.conca[idx]([downsample_feat, feat_height, proj_feats[idx+1]])
             else:
-                # inp = torch.concat([downsample_feat, feat_height], dim=1)
-                inp = self.conca[idx]([downsample_feat, feat_height])
+                inp = torch.concat([downsample_feat, feat_height], dim=1)
+                # inp = self.conca[idx]([downsample_feat, feat_height])
             out = self.pan_blocks[idx](inp)
             outs.append(out)
         # fe_outs = []
