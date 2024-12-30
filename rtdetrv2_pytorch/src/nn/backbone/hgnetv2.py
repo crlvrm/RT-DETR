@@ -459,11 +459,14 @@ class HGNetv2(nn.Module):
     def forward(self, x: Tensor) -> List[Tensor]:
         x = self.stem(x)
         outs = []
+        fe_feat = None
         for idx, stage in enumerate(self.stages):
             x = stage(x)
+            if idx == 0:
+                fe_feat = x
             if idx in self.return_idx:
                 outs.append(x)
-        return outs
+        return [outs, fe_feat]
 
 
 
