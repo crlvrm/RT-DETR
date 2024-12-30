@@ -18,8 +18,12 @@ HGNetv2:
   name: 'L'
   return_idx: [1, 2, 3]
   freeze_at: 0
-  freeze_norm: True
+  freeze_norm: False
   pretrained: True
+
+HybridEncoder:
+    dysample: True
+    bifpn: True
 
 
 optimizer:
