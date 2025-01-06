@@ -281,8 +281,8 @@ class CSPRepLayer(nn.Module):
         self.bottlenecks = nn.Sequential(*[
             RepVggBlock(hidden_channels, hidden_channels, act=act) for _ in range(num_blocks)
         ])
-        self.attention = AdaptiveLowLightEnhance(hidden_channels)
-        self.gate = Gate(hidden_channels)
+
+        # self.gate = Gate(hidden_channels)
         if hidden_channels != out_channels:
             self.conv3 = ConvNormLayer(hidden_channels, out_channels, 1, 1, bias=bias, act=act)
         else:
@@ -292,8 +292,8 @@ class CSPRepLayer(nn.Module):
         x_1 = self.conv1(x)
         x_1 = self.bottlenecks(x_1)
         x_2 = self.conv2(x)
-        return self.conv3(self.gate(self.attention(x_1), x_2))
-        # return self.conv3(x_1 + x_2)
+        # return self.conv3(self.gate(self.attention(x_1), x_2))
+        return self.conv3(x_1 + x_2)
 
 class RepNCSPELAN4(nn.Module):
     # csp-elan
@@ -781,6 +781,7 @@ class HybridEncoder(nn.Module):
         self.bifpn = bifpn
         # channel projection
         self.input_proj = nn.ModuleList()
+        self.atts = nn.ModuleList()
         for in_channel in in_channels:
             if version == 'v1':
                 proj = nn.Sequential(
@@ -795,6 +796,7 @@ class HybridEncoder(nn.Module):
                 raise AttributeError()
                 
             self.input_proj.append(proj)
+            self.atts.append(AdaptiveLowLightEnhance(hidden_dim))
         # self.sppf = SPPF(hidden_dim, hidden_dim)
         # encoder transformer
         encoder_layer = TransformerEncoderLayer(
@@ -888,7 +890,7 @@ class HybridEncoder(nn.Module):
         fe_feat = all_feats[1]
         assert len(feats) == len(self.in_channels)
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
-        
+        proj_feats = [self.atts[i](feat) for i, feat in enumerate(proj_feats)]
         # encoder
         if self.num_encoder_layers > 0:
             for i, enc_ind in enumerate(self.use_encoder_idx):
