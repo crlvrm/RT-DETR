@@ -641,8 +641,11 @@ class AdaptiveLowLightEnhance(nn.Module):
 
     def forward(self, x):
         # Estimate scene brightness
+        print(x.shape)
         brightness = torch.mean(x, dim=(2, 3), keepdim=True)  # Global average pooling
+        print(brightness.shape)
         brightness = torch.clamp(brightness, max=1.0)
+        print(brightness.shape)
         # Control gamma and attention strength based on brightness
         gamma_adjusted = torch.pow(torch.clamp(x, min=1e-6), self.gamma * (1 - brightness))
         attention = self.fc(gamma_adjusted).expand_as(gamma_adjusted)  # 确保广播一致
@@ -796,7 +799,7 @@ class HybridEncoder(nn.Module):
                 raise AttributeError()
                 
             self.input_proj.append(proj)
-            self.atts.append(AdaptiveLowLightEnhance(hidden_dim))
+            # self.atts.append(AdaptiveLowLightEnhance(hidden_dim))
         # self.sppf = SPPF(hidden_dim, hidden_dim)
         # encoder transformer
         encoder_layer = TransformerEncoderLayer(
@@ -890,7 +893,7 @@ class HybridEncoder(nn.Module):
         fe_feat = all_feats[1]
         assert len(feats) == len(self.in_channels)
         proj_feats = [self.input_proj[i](feat) for i, feat in enumerate(feats)]
-        proj_feats = [self.atts[i](feat) for i, feat in enumerate(proj_feats)]
+        # proj_feats = [self.atts[i](feat) for i, feat in enumerate(proj_feats)]
         # encoder
         if self.num_encoder_layers > 0:
             for i, enc_ind in enumerate(self.use_encoder_idx):
