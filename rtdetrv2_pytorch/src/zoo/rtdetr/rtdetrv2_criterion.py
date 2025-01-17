@@ -14,6 +14,44 @@ from ...misc.dist_utils import get_world_size, is_dist_available_and_initialized
 from ...core import register
 
 
+class AdaptiveThresholdFocalLoss(nn.Module):
+    # Wraps focal loss around existing loss_fcn(), i.e. criteria = FocalLoss(nn.BCEWithLogitsLoss(), gamma=1.5)
+    def __init__(self, loss_fcn, weight, gamma=1.5, alpha=0.25):
+        super(AdaptiveThresholdFocalLoss, self).__init__()
+        self.loss_fcn = loss_fcn  # must be nn.BCEWithLogitsLoss()
+        self.gamma = gamma
+        self.alpha = alpha
+        self.weight = weight
+        # self.reduction = loss_fcn.reduction
+        # self.loss_fcn.reduction = 'none'  # required to apply FL to each element
+
+    def forward(self, pred, true):
+        loss = self.loss_fcn(pred, true, weight=self.weight, reduction='none')
+        pred_prob = torch.sigmoid(pred)
+        p_t = true * pred_prob + (1 - true) * (1 - pred_prob)  # 得出预测概率
+        p_t = torch.Tensor(p_t)  # 将张量转化为pytorch张量，使其在pytorch中可以进行张量运算
+
+        mean_pt = p_t.mean()
+        p_t_list = []
+        p_t_list.append(mean_pt)
+        p_t_old = sum(p_t_list) / len(p_t_list)
+        p_t_new = 0.05 * p_t_old + 0.95 * mean_pt
+        # gamma =2
+        gamma = -torch.log(p_t_new)
+        # 处理大于0.5的元素
+        p_t_high = torch.where(p_t > 0.5, (1.000001 - p_t) ** gamma, torch.zeros_like(p_t))
+
+        # 处理小于0.5的元素
+        p_t_low = torch.where(p_t <= 0.5, (1.5 - p_t) ** (-torch.log(p_t)), torch.zeros_like(p_t))  # # 将两部分结果相加
+        modulating_factor = p_t_high + p_t_low
+        loss *= modulating_factor
+        # if self.reduction == 'mean':
+        #     return loss.mean()
+        # elif self.reduction == 'sum':
+        #     return loss.sum()
+        # else:  # 'none'
+        return loss
+
 @register()
 class RTDETRCriterionv2(nn.Module):
     """ This class computes the loss for DETR.
@@ -32,7 +70,8 @@ class RTDETRCriterionv2(nn.Module):
         gamma=2.0, 
         num_classes=80, 
         boxes_weight_format=None,
-        share_matched_indices=False):
+        share_matched_indices=False,
+        mal_alpha=None):
         """Create the criterion.
         Parameters:
             matcher: module able to compute a matching between targets and proposals
@@ -51,6 +90,7 @@ class RTDETRCriterionv2(nn.Module):
         self.share_matched_indices = share_matched_indices
         self.alpha = alpha
         self.gamma = gamma
+        self.mal_alpha = mal_alpha
 
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
@@ -90,11 +130,45 @@ class RTDETRCriterionv2(nn.Module):
 
         pred_score = F.sigmoid(src_logits).detach()
         weight = self.alpha * pred_score.pow(self.gamma) * (1 - target) + target_score
-        
+        # atfl = AdaptiveThresholdFocalLoss(F.binary_cross_entropy_with_logits, weight)
+        # loss = atfl(src_logits, target_score)
         loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         return {'loss_vfl': loss}
 
+    def loss_labels_mal(self, outputs, targets, indices, num_boxes, values=None):
+        assert 'pred_boxes' in outputs
+        idx = self._get_src_permutation_idx(indices)
+        if values is None:
+            src_boxes = outputs['pred_boxes'][idx]
+            target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
+            ious, _ = box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
+            ious = torch.diag(ious).detach()
+        else:
+            ious = values
+
+        src_logits = outputs['pred_logits']
+        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
+        target_classes = torch.full(src_logits.shape[:2], self.num_classes,
+                                    dtype=torch.int64, device=src_logits.device)
+        target_classes[idx] = target_classes_o
+        target = F.one_hot(target_classes, num_classes=self.num_classes + 1)[..., :-1]
+
+        target_score_o = torch.zeros_like(target_classes, dtype=src_logits.dtype)
+        target_score_o[idx] = ious.to(target_score_o.dtype)
+        target_score = target_score_o.unsqueeze(-1) * target
+
+        pred_score = F.sigmoid(src_logits).detach()
+        target_score = target_score.pow(self.gamma)
+        if self.mal_alpha != None:
+            weight = self.mal_alpha * pred_score.pow(self.gamma) * (1 - target) + target
+        else:
+            weight = pred_score.pow(self.gamma) * (1 - target) + target
+
+        # print(" ### DEIM-gamma{}-alpha{} ### ".format(self.gamma, self.mal_alpha))
+        loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
+        loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
+        return {'loss_mal': loss}
     def loss_boxes(self, outputs, targets, indices, num_boxes, boxes_weight=None):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
            targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
@@ -134,6 +208,7 @@ class RTDETRCriterionv2(nn.Module):
             'boxes': self.loss_boxes,
             'focal': self.loss_labels_focal,
             'vfl': self.loss_labels_vfl,
+            'mal': self.loss_labels_mal,
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
@@ -238,7 +313,7 @@ class RTDETRCriterionv2(nn.Module):
 
         if loss in ('boxes', ):
             meta = {'boxes_weight': iou}
-        elif loss in ('vfl', ):
+        elif loss in ('vfl', 'mal'):
             meta = {'values': iou}
         else:
             meta = {}
