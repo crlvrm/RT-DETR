@@ -251,6 +251,7 @@ class MSDeformableAttention(nn.Module):
 
         self.sampling_offsets = nn.Linear(embed_dim, self.total_points * 2)
         self.attention_weights = nn.Linear(embed_dim, self.total_points)
+        self.scale_offset_proj = nn.Linear(embed_dim, self.num_heads*self.num_levels)
         self.value_proj = nn.Linear(embed_dim, embed_dim)
         self.output_proj = nn.Linear(embed_dim, embed_dim)
 
@@ -313,6 +314,13 @@ class MSDeformableAttention(nn.Module):
 
         sampling_offsets: torch.Tensor = self.sampling_offsets(query)
         sampling_offsets = sampling_offsets.reshape(bs, Len_q, self.num_heads, sum(self.num_points_list), 2)
+        scale_offset_factor = self.scale_offset_proj(query).sigmoid().reshape(bs, Len_q, self.num_heads, self.num_levels)
+        scale_offset_factor = torch.cat([
+            scale_offset_factor[..., i:i + 1].repeat(1, 1, 1, num_points)  # 对每个尺度重复
+            for i, num_points in enumerate(self.num_points_list)
+        ], dim=-1)
+        scale_offset_factor = scale_offset_factor.unsqueeze(-1)
+        sampling_offsets = sampling_offsets * scale_offset_factor
 
         attention_weights = self.attention_weights(query).reshape(bs, Len_q, self.num_heads, sum(self.num_points_list))
         attention_weights = F.softmax(attention_weights, dim=-1).reshape(bs, Len_q, self.num_heads, sum(self.num_points_list))

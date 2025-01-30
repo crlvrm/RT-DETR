@@ -1,0 +1,52 @@
+__include__: [
+  '../dataset/bdd_detection_kaggle.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/rtdetrv2_r50vd.yml',
+  './deim.yml',
+]
+
+
+output_dir: /kaggle/working/output/rtdetrv2_starnet_120e_kaggle
+
+RTDETR:
+  backbone: StarNet
+
+StarNet:
+  name: 'starnet_s4'
+  return_idx: [1, 2, 3]
+  freeze_at: -1
+  freeze_norm: False
+  pretrained: False
+
+
+HybridEncoder:
+  in_channels: [256, 512, 1024]
+  hidden_dim: 256
+#  expansion: 0.5
+  dysample: True
+  bifpn: True
+
+
+RTDETRTransformerv2:
+  num_layers: 3
+
+
+epoches: 7
+
+optimizer:
+  type: AdamW
+  params:
+    - 
+      params: '^(?=.*(?:norm|bn)).*$'
+      weight_decay: 0.
+
+
+#train_dataloader:
+#  dataset:
+#    transforms:
+#      policy:
+#        epoch: 117
+#  collate_fn:
+#    scales: ~
