@@ -18,7 +18,7 @@ StarNet:
   return_idx: [1, 2, 3]
   freeze_at: -1
   freeze_norm: False
-  pretrained: False
+  pretrained: True
 
 
 HybridEncoder:
