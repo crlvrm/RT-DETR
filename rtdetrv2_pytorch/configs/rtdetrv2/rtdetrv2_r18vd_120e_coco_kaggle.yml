@@ -4,6 +4,7 @@ __include__: [
   './include/dataloader.yml',
   './include/optimizer.yml',
   './include/rtdetrv2_r50vd.yml',
+  './deim.yml'
 ]
 
 
@@ -21,6 +22,8 @@ HybridEncoder:
   in_channels: [128, 256, 512]
   hidden_dim: 256
   expansion: 0.5
+  dysample: True
+  bifpn: True
 
 
 RTDETRTransformerv2:
@@ -37,10 +40,10 @@ optimizer:
       weight_decay: 0.
 
 
-train_dataloader: 
-  dataset: 
-    transforms:
-      policy:
-        epoch: 22
-  collate_fn:
-    scales: ~
+#train_dataloader:
+#  dataset:
+#    transforms:
+#      policy:
+#        epoch: 22
+#  collate_fn:
+#    scales: ~

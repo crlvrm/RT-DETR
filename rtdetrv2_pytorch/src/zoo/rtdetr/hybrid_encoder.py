@@ -455,7 +455,7 @@ class CCM(nn.Module):
         super(CCM, self).__init__()
         self.ccm_cfg = [256, 256, 256]
         in_channels = 256
-        self.conv1 = nn.Conv2d(128, 256, kernel_size=1)
+        self.conv1 = nn.Conv2d(64, 256, kernel_size=1)
         self.norm = nn.BatchNorm2d(256)
         self.conv2 = nn.Conv2d(256, in_channels, kernel_size=1)
         layers = []
