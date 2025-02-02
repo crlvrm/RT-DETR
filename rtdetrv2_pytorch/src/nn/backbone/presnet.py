@@ -236,10 +236,13 @@ class PResNet(nn.Module):
         conv1 = self.conv1(x)
         x = F.max_pool2d(conv1, kernel_size=3, stride=2, padding=1)
         outs = []
+        fe_feat = None
         for idx, stage in enumerate(self.res_layers):
             x = stage(x)
+            if idx == 0:
+                fe_feat = x
             if idx in self.return_idx:
                 outs.append(x)
-        return outs
+        return [outs, fe_feat]
 
 
